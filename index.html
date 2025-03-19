@@ -25,26 +25,6 @@
         .green { background-color: #48bb78; } /* Less than 1 week */
         .yellow { background-color: #f6e05e; } /* 1-2 weeks */
         .red { background-color: #e53e3e; }   /* Over 2 weeks */
-
-        /* Loading indicator styles */
-        .loading-indicator {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 1rem;
-        }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-radius: 50%;
-            border-top-color: #3498db;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body class="bg-gray-100 p-4">
@@ -57,35 +37,24 @@
         </div>
 
         <ul id="grocery-list" class="space-y-3">
-        </ul>
-        <div id="loading-indicator" class="loading-indicator" style="display: none;">
-            <div class="spinner"></div>
-            <span class="ml-2 text-gray-600">Loading...</span>
-        </div>
+            </ul>
     </div>
 
     <script>
         const groceryList = document.getElementById('grocery-list');
         const newItemInput = document.getElementById('new-item-input');
         const addItemButton = document.getElementById('add-item-button');
-        const loadingIndicator = document.getElementById('loading-indicator');
         // Use the Google Apps Script URL you provided
         const scriptUrl = 'https://script.google.com/macros/s/AKfycbx0U0dkLjYYLPyGDf1v4u63BfGiy8qS7ynTlGNV4XFWAJkh-ytxfwdWbnVdxvZsXKfUOQ/exec';
 
         // Function to fetch and display the grocery list
         function loadGroceryList() {
-            showLoadingIndicator(); // Show loading indicator
             fetch(scriptUrl + '?action=getList')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     groceryList.innerHTML = '';
                      // Sort the data by Added Date, newest first
-                    const sortedData = data.sort((a, b) => new Date(b['Added Date']) - new Date(a['Added Date']));
+                    const sortedData = data.data.sort((a, b) => new Date(b.addedDate) - new Date(a.addedDate));
                     sortedData.forEach(item => {
                         const listItem = createListItem(item);
                         groceryList.appendChild(listItem);
@@ -94,9 +63,6 @@
                 .catch(error => {
                     console.error('Error fetching grocery list:', error);
                     groceryList.innerHTML = `<li class="text-red-500">Error loading list: ${error.message}</li>`;
-                })
-                .finally(() => {
-                    hideLoadingIndicator(); // Hide loading indicator
                 });
         }
 
@@ -106,16 +72,16 @@
             listItem.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-md';
             const itemTextSpan = document.createElement('span');
 
-            if (item.Purchased === 'TRUE') {
+            if (item.purchased === true) {
                 itemTextSpan.className = 'purchased';
             } else {
                 itemTextSpan.className = '';
             }
-            itemTextSpan.textContent = item.Item;
+            itemTextSpan.textContent = item.item;
 
             const ageIndicator = document.createElement('span');
             ageIndicator.className = 'age-indicator';
-            const addedDate = new Date(item['Added Date']);
+            const addedDate = new Date(item.addedDate);
             const today = new Date();
             const diffInDays = Math.floor((today - addedDate) / (1000 * 60 * 60 * 24));
 
@@ -134,7 +100,7 @@
 
             listItem.appendChild(itemContent);
 
-            listItem.addEventListener('click', () => togglePurchased(item.Item));
+            listItem.addEventListener('click', () => togglePurchased(item.id));
             return listItem;
         }
 
@@ -142,74 +108,44 @@
         function addItem() {
             const newItem = newItemInput.value.trim();
             if (newItem === '') return;
-            showLoadingIndicator();
+
+            const formData = new FormData();
+            formData.append('action', 'addItem');
+            formData.append('item', newItem);
+
             fetch(scriptUrl, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `action=addItem&item=${encodeURIComponent(newItem)}`,
+                body: formData,
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(() => {
-                loadGroceryList(); // Reload the list to display the new item
-                newItemInput.value = ''; // Clear the input
+                loadGroceryList();
+                newItemInput.value = '';
             })
             .catch(error => {
                 console.error('Error adding item:', error);
                 alert('Failed to add item. Please check your connection and try again.');
-            })
-            .finally(() => {
-                hideLoadingIndicator();
             });
         }
 
         // Function to toggle the purchased status of an item
-        function togglePurchased(itemName) {
-            showLoadingIndicator();
-            console.log("togglePurchased called for:", itemName); // Log the itemName
-          fetch(scriptUrl, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `action=togglePurchased&item=${encodeURIComponent(itemName)}`,
-          })
-            .then((response) => {
-                console.log("Response status:", response.status); // Log the response status
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-              return response.json()
+        function togglePurchased(itemId) {
+            const formData = new FormData();
+            formData.append('action', 'togglePurchased');
+            formData.append('id', itemId); // Send the item ID
+
+            fetch(scriptUrl, {
+                method: 'PUT',
+                body: formData,
             })
-            .then((data) => {
-                console.log("Response data:", data); // Log the data received
-              loadGroceryList(); // Reload the list to update the display
+            .then(response => response.json())
+            .then(() => {
+                loadGroceryList();
             })
-            .catch((error) => {
-              console.error("Error toggling purchased status:", error);
-              alert(
-                "Failed to update item status. Please check your connection and try again. " + error.message
-              );
-            })
-            .finally(() => {
-                hideLoadingIndicator();
+            .catch(error => {
+                console.error('Error toggling purchased status:', error);
+                alert('Failed to update item status. Please check your connection and try again.');
             });
-        }
-
-        // Function to display the loading indicator
-        function showLoadingIndicator() {
-            loadingIndicator.style.display = 'flex';
-        }
-
-        // Function to hide the loading indicator
-        function hideLoadingIndicator() {
-            loadingIndicator.style.display = 'none';
         }
 
         // Event Listeners

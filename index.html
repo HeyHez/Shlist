@@ -1,163 +1,266 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grocery List</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-    <style>
-        /* Custom styles for visual cues and list appearance */
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .purchased {
-            text-decoration: line-through;
-            color: #a0aec0; /* Gray out purchased items */
-        }
-        .age-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
-        .green { background-color: #48bb78; } /* Less than 1 week */
-        .yellow { background-color: #f6e05e; } /* 1-2 weeks */
-        .red { background-color: #e53e3e; }   /* Over 2 weeks */
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grocery List</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .input-container {
+      display: flex;
+      margin-bottom: 20px;
+    }
+    #new-item {
+      flex-grow: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px 0 0 4px;
+      font-size: 16px;
+    }
+    #add-button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 0 4px 4px 0;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #add-button:hover {
+      background-color: #45a049;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      padding: 12px 15px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    li:last-child {
+      border-bottom: none;
+    }
+    .purchased {
+      text-decoration: line-through;
+      color: #888;
+    }
+    .age-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 10px;
+    }
+    .recent {
+      background-color: #4CAF50;
+    }
+    .medium {
+      background-color: #FFC107;
+    }
+    .old {
+      background-color: #F44336;
+    }
+    .item-details {
+      flex-grow: 1;
+    }
+    .item-date {
+      font-size: 12px;
+      color: #888;
+      margin-left: 22px;
+    }
+    .loading {
+      text-align: center;
+      color: #888;
+      padding: 20px;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 p-4">
-    <div class="container mx-auto rounded-lg shadow-md bg-white p-6">
-        <h1 class="text-2xl font-semibold text-gray-800 mb-4">Grocery List</h1>
+<body>
+  <h1>Grocery List</h1>
+  
+  <div class="input-container">
+    <input type="text" id="new-item" placeholder="Add a new item">
+    <button id="add-button">Add</button>
+  </div>
+  
+  <div id="loading" class="loading">Loading grocery list...</div>
+  <ul id="grocery-list"></ul>
 
-        <div class="flex space-x-4 mb-4">
-            <input type="text" id="new-item-input" placeholder="Add New Item" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
-            <button id="add-item-button" class="bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:shadow-outline">Add Item</button>
-        </div>
-
-        <ul id="grocery-list" class="space-y-3">
-            </ul>
-    </div>
-
-    <script>
-        const groceryList = document.getElementById('grocery-list');
-        const newItemInput = document.getElementById('new-item-input');
-        const addItemButton = document.getElementById('add-item-button');
-        // Use the Google Apps Script URL you provided
-        const scriptUrl = 'https://script.google.com/macros/s/AKfycbx0U0dkLjYYLPyGDf1v4u63BfGiy8qS7ynTlGNV4XFWAJkh-ytxfwdWbnVdxvZsXKfUOQ/exec';
-
-        // Function to fetch and display the grocery list
-        function loadGroceryList() {
-            fetch(scriptUrl + '?action=getList')
-                .then(response => response.json())
-                .then(data => {
-                    groceryList.innerHTML = '';
-                     // Sort the data by Added Date, newest first
-                    const sortedData = data.data.sort((a, b) => new Date(b.addedDate) - new Date(a.addedDate));
-                    sortedData.forEach(item => {
-                        const listItem = createListItem(item);
-                        groceryList.appendChild(listItem);
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching grocery list:', error);
-                    groceryList.innerHTML = `<li class="text-red-500">Error loading list: ${error.message}</li>`;
-                });
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbx0U0dkLjYYLPyGDf1v4u63BfGiy8qS7ynTlGNV4XFWAJkh-ytxfwdWbnVdxvZsXKfUOQ/exec';
+    
+    document.addEventListener('DOMContentLoaded', () => {
+      loadGroceryList();
+      
+      const addButton = document.getElementById('add-button');
+      const newItemInput = document.getElementById('new-item');
+      
+      addButton.addEventListener('click', () => {
+        addItem();
+      });
+      
+      newItemInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          addItem();
         }
-
-        // Function to create a list item element
-        function createListItem(item) {
-            const listItem = document.createElement('li');
-            listItem.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-md';
-            const itemTextSpan = document.createElement('span');
-
-            if (item.purchased === true) {
-                itemTextSpan.className = 'purchased';
-            } else {
-                itemTextSpan.className = '';
-            }
-            itemTextSpan.textContent = item.item;
-
-            const ageIndicator = document.createElement('span');
-            ageIndicator.className = 'age-indicator';
-            const addedDate = new Date(item.addedDate);
-            const today = new Date();
-            const diffInDays = Math.floor((today - addedDate) / (1000 * 60 * 60 * 24));
-
-            if (diffInDays < 7) {
-                ageIndicator.classList.add('green');
-            } else if (diffInDays < 14) {
-                ageIndicator.classList.add('yellow');
-            } else {
-                ageIndicator.classList.add('red');
-            }
-
-            const itemContent = document.createElement('div');
-            itemContent.className = 'flex items-center';
-            itemContent.appendChild(ageIndicator);
-            itemContent.appendChild(itemTextSpan);
-
-            listItem.appendChild(itemContent);
-
-            listItem.addEventListener('click', () => togglePurchased(item.id));
-            return listItem;
-        }
-
-        // Function to add a new item
-        function addItem() {
-            const newItem = newItemInput.value.trim();
-            if (newItem === '') return;
-
-            const formData = new FormData();
-            formData.append('action', 'addItem');
-            formData.append('item', newItem);
-
-            fetch(scriptUrl, {
-                method: 'POST',
-                body: formData,
-            })
-            .then(response => response.json())
-            .then(() => {
-                loadGroceryList();
-                newItemInput.value = '';
-            })
-            .catch(error => {
-                console.error('Error adding item:', error);
-                alert('Failed to add item. Please check your connection and try again.');
-            });
-        }
-
-        // Function to toggle the purchased status of an item
-        function togglePurchased(itemId) {
-            const formData = new FormData();
-            formData.append('action', 'togglePurchased');
-            formData.append('id', itemId); // Send the item ID
-
-            fetch(scriptUrl, {
-                method: 'PUT',
-                body: formData,
-            })
-            .then(response => response.json())
-            .then(() => {
-                loadGroceryList();
-            })
-            .catch(error => {
-                console.error('Error toggling purchased status:', error);
-                alert('Failed to update item status. Please check your connection and try again.');
-            });
-        }
-
-        // Event Listeners
-        addItemButton.addEventListener('click', addItem);
-        newItemInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                addItem();
-            }
+      });
+    });
+    
+    function loadGroceryList() {
+      const loadingElement = document.getElementById('loading');
+      loadingElement.style.display = 'block';
+      
+      fetch(API_URL)
+        .then(response => response.json())
+        .then(data => {
+          displayGroceryList(data.items);
+          loadingElement.style.display = 'none';
+        })
+        .catch(error => {
+          console.error('Error loading grocery list:', error);
+          loadingElement.textContent = 'Error loading grocery list. Please try again.';
         });
-
-        // Load the list when the page loads
-        loadGroceryList();
-    </script>
+    }
+    
+    function displayGroceryList(items) {
+      const listElement = document.getElementById('grocery-list');
+      listElement.innerHTML = '';
+      
+      if (items.length === 0) {
+        const emptyMessage = document.createElement('li');
+        emptyMessage.textContent = 'No items in your grocery list. Add some above!';
+        listElement.appendChild(emptyMessage);
+        return;
+      }
+      
+      items.forEach(item => {
+        const listItem = document.createElement('li');
+        
+        const ageIndicator = document.createElement('span');
+        ageIndicator.className = 'age-indicator ' + getAgeClass(item['Added Date']);
+        listItem.appendChild(ageIndicator);
+        
+        const itemDetails = document.createElement('div');
+        itemDetails.className = 'item-details';
+        
+        const itemName = document.createElement('div');
+        itemName.textContent = item['Item'];
+        itemDetails.appendChild(itemName);
+        
+        const itemDate = document.createElement('div');
+        itemDate.className = 'item-date';
+        itemDate.textContent = formatDate(item['Added Date']);
+        itemDetails.appendChild(itemDate);
+        
+        listItem.appendChild(itemDetails);
+        
+        if (item['Purchased']) {
+          listItem.classList.add('purchased');
+        }
+        
+        listItem.addEventListener('click', () => {
+          togglePurchased(item['Item'], !item['Purchased']);
+        });
+        
+        listElement.appendChild(listItem);
+      });
+    }
+    
+    function getAgeClass(dateStr) {
+      const itemDate = new Date(dateStr);
+      const now = new Date();
+      const diffTime = Math.abs(now - itemDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays <= 7) {
+        return 'recent';
+      } else if (diffDays <= 14) {
+        return 'medium';
+      } else {
+        return 'old';
+      }
+    }
+    
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString();
+    }
+    
+    function addItem() {
+      const newItemInput = document.getElementById('new-item');
+      const itemName = newItemInput.value.trim();
+      
+      if (!itemName) {
+        return;
+      }
+      
+      newItemInput.disabled = true;
+      const addButton = document.getElementById('add-button');
+      addButton.disabled = true;
+      addButton.textContent = 'Adding...';
+      
+      fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ item: itemName }),
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            newItemInput.value = '';
+            loadGroceryList();
+          } else {
+            console.error('Error adding item:', data.error);
+            alert('Error adding item: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error adding item:', error);
+          alert('Error adding item. Please try again.');
+        })
+        .finally(() => {
+          newItemInput.disabled = false;
+          addButton.disabled = false;
+          addButton.textContent = 'Add';
+        });
+    }
+    
+    function togglePurchased(itemName, purchased) {
+      fetch(API_URL, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ item: itemName, purchased: purchased }),
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            loadGroceryList();
+          } else {
+            console.error('Error updating item:', data.error);
+            alert('Error updating item: ' + data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Error updating item:', error);
+          alert('Error updating item. Please try again.');
+        });
+    }
+  </script>
 </body>
 </html>
